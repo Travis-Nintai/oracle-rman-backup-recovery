@@ -17,6 +17,44 @@ oracle-rman-backup-recovery/
 └── docs/   -- strategy, validation workflow, recovery runbooks
 ```
 
+## Scripts and templates
+
+| File | What it does |
+|---|---|
+| `sql/recovery_readiness.sql` | Read-only recovery readiness report: ARCHIVELOG mode, FRA pressure, latest full backup, datafile backup coverage, controlfile autobackup; exit 2 when a check fails |
+| `rman/backup_database.rman` | Template for a full database backup plus archived logs; deletes nothing |
+| `rman/validate_restore.rman` | Template for validating backups without restoring: crosscheck, restore validate with logical checking, archivelog validate, need-backup report |
+
+Recovery readiness for the last 7 days of full backups (connect as a privileged user, e.g. `/ as sysdba`):
+
+```
+sqlplus / as sysdba @sql/recovery_readiness.sql
+```
+
+Thresholds live in the `DEFINE` lines at the top of the script. A clean report means the pieces exist; it does not prove they restore. That proof comes from the validation workflow.
+
+Take a backup with the template (replace `<BACKUP_LOCATION>` first, and read the header before running it):
+
+```
+rman TARGET / @rman/backup_database.rman
+```
+
+Validate what the backup produced:
+
+```
+rman TARGET / @rman/validate_restore.rman
+```
+
+## Docs
+
+| Doc | What it covers |
+|---|---|
+| `docs/backup-strategy.md` | Retention design, full vs incremental, FRA sizing, archiving, and the licensing notes for block change tracking, backup encryption, and Flashback Database |
+| `docs/restore-validation-workflow.md` | The validation cadence, how to work a failed validation, and the monthly test restore to an isolated host |
+| `docs/point-in-time-recovery-runbook.md` | Choosing the recovery scope, database PITR and TSPITR outlines, archived log gaps, and the steps after every recovery |
+
+Start with `docs/backup-strategy.md` if the retention policy is not written down yet. Start with `docs/point-in-time-recovery-runbook.md` if something is already broken.
+
 ## Assumptions
 
 - Oracle 11g or later. The readiness check reads `V$DATABASE`, `V$RECOVERY_FILE_DEST`, `V$BACKUP_SET`, `V$BACKUP_DATAFILE`, and `V$RMAN_CONFIGURATION`.
