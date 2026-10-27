@@ -1,0 +1,47 @@
+# ============================================================================
+# backup_database.rman
+#
+# Purpose:
+#   Template for a full database backup plus archived logs. This is the
+#   backup half of a recovery strategy: a usable full backup, the
+#   archived logs that follow it, and nothing deleted until the backup
+#   is verified.
+#
+# Usage:
+#   rman TARGET / @backup_database.rman
+#
+#   Before running it, replace <BACKUP_LOCATION> with the backup
+#   destination and confirm the backup policy in
+#   docs/backup-strategy.md (retention, window, and whether the fast
+#   recovery area is in use). If the fast recovery area is configured
+#   as the backup destination, drop the FORMAT clause and let RMAN
+#   place the pieces there.
+#
+# What it does NOT do:
+#   It does not delete archived logs. BACKUP ... PLUS ARCHIVELOG with
+#   DELETE INPUT is common, but deleting logs is a separate, deliberate
+#   step that belongs after the backup is verified, not inside the job
+#   that creates it. See docs/restore-validation-workflow.md.
+#
+# Notes:
+#   This file writes backup pieces. It changes state on the backup
+#   destination, not on the database data. Review it, test it against
+#   a non-production database first, and keep controlfile autobackup
+#   on (CONFIGURE CONTROLFILE AUTOBACKUP ON) so a restore never has
+#   to hunt for a control file.
+#   Reviewed; not executed against a live Oracle instance.
+# ============================================================================
+
+RUN {
+  ALLOCATE CHANNEL c1 DEVICE TYPE DISK FORMAT '<BACKUP_LOCATION>/%U';
+
+  BACKUP AS COMPRESSED BACKUPSET DATABASE PLUS ARCHIVELOG;
+
+  RELEASE CHANNEL c1;
+}
+
+# After this job completes, confirm it before trusting it:
+#   LIST BACKUP SUMMARY;
+# and run the validation in rman/validate_restore.rman.
+# The readiness check in sql/recovery_readiness.sql reports the new
+# backup on its next run.

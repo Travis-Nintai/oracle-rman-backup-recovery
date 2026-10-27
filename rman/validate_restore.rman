@@ -1,0 +1,48 @@
+# ============================================================================
+# validate_restore.rman
+#
+# Purpose:
+#   Proves, without changing the database, that the backups on disk
+#   are readable and complete enough to restore. Run this on a
+#   schedule, not just after a backup failure, because a backup that
+#   has never been validated is an assumption.
+#
+# Usage:
+#   rman TARGET / @validate_restore.rman
+#
+# What each step checks:
+#   CROSSCHECK BACKUP synchronizes the repository with what is
+#   actually on disk, marking pieces that are gone as EXPIRED.
+#   RESTORE DATABASE VALIDATE reads every backup piece a restore
+#   would need and checks for physical corruption, without writing
+#   any datafiles. CHECK LOGICAL adds a logical corruption check.
+#   RESTORE ARCHIVELOG ALL VALIDATE does the same for the archived
+#   logs a recovery would need.
+#   REPORT NEED BACKUP lists datafiles that fall outside the
+#   configured retention policy and need a fresh backup.
+#
+# What it does NOT do:
+#   It does not restore anything. A clean VALIDATE means the pieces
+#   are readable; it does not prove an end-to-end restore works.
+#   That proof only comes from an actual test restore to an
+#   isolated host, covered in docs/restore-validation-workflow.md.
+#
+# To validate one backup set by its key (from LIST BACKUP):
+#   VALIDATE BACKUPSET <KEY>;
+# Replace <KEY> with the key from the LIST output. That command is
+# left out of the script body because it needs a real key.
+#
+# Notes:
+#   Read-only with respect to the database. CROSSCHECK updates
+#   repository status only. Reviewed; not executed against a live
+#   Oracle instance.
+# ============================================================================
+
+CROSSCHECK BACKUP;
+
+RUN {
+  RESTORE DATABASE VALIDATE CHECK LOGICAL;
+  RESTORE ARCHIVELOG ALL VALIDATE;
+}
+
+REPORT NEED BACKUP;
